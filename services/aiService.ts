@@ -221,6 +221,277 @@ const processImageForApi = async (file: File | Blob): Promise<{ blob: Blob, scal
     });
 };
 
+/**
+ * Generate a unique color for an object ID
+ * Uses a predefined palette of bright, saturated colors for visibility
+ */
+const colorForObjectId = (objId: number): [number, number, number] => {
+    const colors: [number, number, number][] = [
+        [255, 0, 0],     // Red
+        [0, 255, 0],     // Green
+        [0, 0, 255],     // Blue
+        [255, 255, 0],   // Yellow
+        [255, 0, 255],   // Magenta
+        [0, 255, 255],   // Cyan
+        [255, 165, 0],   // Orange
+        [128, 0, 128],   // Purple
+        [255, 192, 203], // Pink
+        [0, 128, 0],     // Dark Green
+    ];
+    return colors[objId % colors.length];
+};
+
+/**
+ * Decode RLE mask to ImageData for canvas rendering
+ * Returns ImageData with mask pixels set to white (255, 255, 255, 255)
+ */
+const decodeRLEToImageData = (
+    mask: { size: [number, number], counts: number[] },
+    width: number,
+    height: number
+): ImageData => {
+    const [maskHeight, maskWidth] = mask.size;
+    const imageData = new ImageData(width, height);
+    const data = imageData.data;
+    const counts = mask.counts;
+    
+    // Decode RLE
+    let p = 0;
+    let val = 0;
+    
+    for (let i = 0; i < counts.length; i++) {
+        const count = counts[i];
+        if (val === 1) {
+            // Set pixels to white
+            const endIdx = Math.min(p + count, width * height);
+            for (let j = p; j < endIdx; j++) {
+                const idx = j * 4;
+                if (idx + 3 < data.length) {
+                    data[idx] = 255;     // R
+                    data[idx + 1] = 255; // G
+                    data[idx + 2] = 255; // B
+                    data[idx + 3] = 255; // A
+                }
+            }
+        }
+        p += count;
+        val = 1 - val;
+    }
+    
+    return imageData;
+};
+
+/**
+ * Render masks on a video frame using Canvas API
+ * This is the client-side rendering optimization (replaces server-side OpenCV blending)
+ * Handles mask resolution differences by scaling masks to match frame resolution
+ */
+const renderMasksOnFrame = async (
+    frameImage: HTMLImageElement | ImageBitmap,
+    masks: { size: [number, number], counts: number[] }[],
+    objectIds: number[],
+    alpha: number = 0.7
+): Promise<string> => {
+    const canvas = document.createElement('canvas');
+    canvas.width = frameImage.width;
+    canvas.height = frameImage.height;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+        throw new Error("Failed to get canvas context");
+    }
+    
+    // Draw original frame
+    ctx.drawImage(frameImage, 0, 0);
+    
+    // Render each mask with its object's color
+    for (let i = 0; i < masks.length; i++) {
+        const mask = masks[i];
+        const objId = objectIds[i] || i;
+        const color = colorForObjectId(objId);
+        
+        // Get mask resolution
+        const [maskHeight, maskWidth] = mask.size;
+        
+        // Decode RLE mask to ImageData at mask resolution first
+        const maskImageData = decodeRLEToImageData(mask, maskWidth, maskHeight);
+        
+        // Create temporary canvas for mask at mask resolution
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = maskWidth;
+        maskCanvas.height = maskHeight;
+        const maskCtx = maskCanvas.getContext('2d');
+        
+        if (!maskCtx) continue;
+        
+        // Draw mask as white at original resolution
+        maskCtx.putImageData(maskImageData, 0, 0);
+        
+        // Scale mask to frame resolution if needed
+        if (maskWidth !== canvas.width || maskHeight !== canvas.height) {
+            const scaledMaskCanvas = document.createElement('canvas');
+            scaledMaskCanvas.width = canvas.width;
+            scaledMaskCanvas.height = canvas.height;
+            const scaledMaskCtx = scaledMaskCanvas.getContext('2d');
+            
+            if (scaledMaskCtx) {
+                // Use nearest-neighbor interpolation to preserve mask edges
+                scaledMaskCtx.imageSmoothingEnabled = false;
+                scaledMaskCtx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height);
+                
+                // Apply color overlay
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.globalCompositeOperation = 'source-over';
+                
+                // Create colored overlay
+                const overlayCanvas = document.createElement('canvas');
+                overlayCanvas.width = canvas.width;
+                overlayCanvas.height = canvas.height;
+                const overlayCtx = overlayCanvas.getContext('2d');
+                
+                if (overlayCtx) {
+                    overlayCtx.drawImage(scaledMaskCanvas, 0, 0);
+                    overlayCtx.globalCompositeOperation = 'source-in';
+                    overlayCtx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                    overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    
+                    // Composite onto main canvas
+                    ctx.drawImage(overlayCanvas, 0, 0);
+                }
+                
+                ctx.restore();
+            }
+        } else {
+            // Same resolution, no scaling needed
+            ctx.save();
+            ctx.globalAlpha = alpha;
+            ctx.globalCompositeOperation = 'source-over';
+            
+            // Create colored overlay
+            const overlayCanvas = document.createElement('canvas');
+            overlayCanvas.width = canvas.width;
+            overlayCanvas.height = canvas.height;
+            const overlayCtx = overlayCanvas.getContext('2d');
+            
+            if (overlayCtx) {
+                overlayCtx.drawImage(maskCanvas, 0, 0);
+                overlayCtx.globalCompositeOperation = 'source-in';
+                overlayCtx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                
+                // Composite onto main canvas
+                ctx.drawImage(overlayCanvas, 0, 0);
+            }
+            
+            ctx.restore();
+        }
+    }
+    
+    return canvas.toDataURL('image/png');
+};
+
+/**
+ * Extract frames from a video file at specific frame indices
+ * Returns array of ImageBitmap objects for efficient rendering
+ */
+const extractVideoFrames = async (
+    videoFile: File,
+    frameIndices: number[],
+    fps: number = 30
+): Promise<ImageBitmap[]> => {
+    return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        video.muted = true;
+        video.crossOrigin = 'anonymous';
+        video.playsInline = true;
+        
+        const videoUrl = URL.createObjectURL(videoFile);
+        video.src = videoUrl;
+        
+        video.onloadedmetadata = async () => {
+            try {
+                const frames: ImageBitmap[] = [];
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                if (!ctx) {
+                    URL.revokeObjectURL(videoUrl);
+                    reject(new Error("Failed to get canvas context"));
+                    return;
+                }
+                
+                // Extract each requested frame sequentially
+                for (let i = 0; i < frameIndices.length; i++) {
+                    const frameIdx = frameIndices[i];
+                    const time = frameIdx / fps; // Convert frame index to time
+                    
+                    // Ensure time is within video duration
+                    if (time > video.duration) {
+                        console.warn(`⚠️ [extractVideoFrames] Frame ${frameIdx} time ${time}s exceeds video duration ${video.duration}s`);
+                        continue;
+                    }
+                    
+                    await new Promise<void>((frameResolve, frameReject) => {
+                        const timeout = setTimeout(() => {
+                            frameReject(new Error(`Timeout waiting for frame ${frameIdx}`));
+                        }, 5000);
+                        
+                        const onSeeked = () => {
+                            clearTimeout(timeout);
+                            video.removeEventListener('seeked', onSeeked);
+                            
+                            try {
+                                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                                canvas.toBlob((blob) => {
+                                    if (blob) {
+                                        createImageBitmap(blob).then((bitmap) => {
+                                            frames.push(bitmap);
+                                            frameResolve();
+                                        }).catch((err) => {
+                                            console.error(`❌ [extractVideoFrames] Failed to create ImageBitmap for frame ${frameIdx}:`, err);
+                                            frameResolve(); // Continue even if one frame fails
+                                        });
+                                    } else {
+                                        console.warn(`⚠️ [extractVideoFrames] Failed to create blob for frame ${frameIdx}`);
+                                        frameResolve(); // Continue even if one frame fails
+                                    }
+                                }, 'image/png');
+                            } catch (err) {
+                                clearTimeout(timeout);
+                                video.removeEventListener('seeked', onSeeked);
+                                console.error(`❌ [extractVideoFrames] Error drawing frame ${frameIdx}:`, err);
+                                frameResolve(); // Continue even if one frame fails
+                            }
+                        };
+                        
+                        video.addEventListener('seeked', onSeeked, { once: true });
+                        video.currentTime = time;
+                    });
+                }
+                
+                URL.revokeObjectURL(videoUrl);
+                console.log(`✅ [extractVideoFrames] Extracted ${frames.length} frames from video`);
+                resolve(frames);
+            } catch (error) {
+                URL.revokeObjectURL(videoUrl);
+                reject(error);
+            }
+        };
+        
+        video.onerror = (e) => {
+            URL.revokeObjectURL(videoUrl);
+            console.error("❌ [extractVideoFrames] Video load error:", e);
+            reject(new Error("Failed to load video"));
+        };
+        
+        video.load();
+    });
+};
+
 // Decode multiple RLE masks (white for composition)
 const decodeMasksToDataURL = (masks: { size: [number, number], counts: number[] }[]): string => {
     if (!masks || masks.length === 0) {
@@ -702,54 +973,120 @@ export const trackVideoText = async (
         const data = await response.json();
         console.log(`✅ [Video API] Video tracking complete: ${data.frames?.length || 0} frames processed`);
         
-        // Process video tracking response
+        // Process video tracking response with CLIENT-SIDE RENDERING
         if (data.frames && data.frames.length > 0) {
-            // Use rendered frames if available, otherwise use first frame
-            let frames = data.rendered_frames || (data.frames[0]?.rendered_frame ? [data.frames[0].rendered_frame] : []);
+            console.log(`🎨 [Video API] Starting client-side mask rendering for ${data.frames.length} frames...`);
             
-            if (!frames || frames.length === 0) {
-                return { text: "No rendered frames available." };
-            }
+            // Extract frame indices from response
+            const frameIndices = data.frames.map((f: any) => f.frame_idx).sort((a: number, b: number) => a - b);
             
-            // Ensure frames have data URL prefix (backend returns raw base64)
-            frames = frames.map((frame: string) => {
-                if (!frame) return frame;
-                // If it already has data: prefix, use as-is
-                if (frame.startsWith('data:')) {
-                    return frame;
-                }
-                // Otherwise, add data:image/png;base64, prefix
-                return `data:image/png;base64,${frame}`;
+            // Get video FPS by loading video metadata
+            // Use max frame_idx to estimate total frames, then calculate FPS
+            const videoFPS = await new Promise<number>((resolve) => {
+                const tempVideo = document.createElement('video');
+                tempVideo.preload = 'metadata';
+                tempVideo.src = URL.createObjectURL(file);
+                tempVideo.onloadedmetadata = () => {
+                    const duration = tempVideo.duration;
+                    const maxFrameIdx = Math.max(...frameIndices);
+                    // Estimate FPS: if we have frame indices up to maxFrameIdx, and video duration,
+                    // we can estimate FPS. Otherwise default to 30.
+                    const estimatedFPS = duration > 0 && maxFrameIdx > 0
+                        ? Math.round((maxFrameIdx + 1) / duration) // +1 because frame_idx is 0-indexed
+                        : 30; // Default to 30 FPS
+                    URL.revokeObjectURL(tempVideo.src);
+                    console.log(`📊 [Video API] Video duration: ${duration.toFixed(2)}s, max frame: ${maxFrameIdx}, estimated FPS: ${estimatedFPS}`);
+                    resolve(estimatedFPS);
+                };
+                tempVideo.onerror = () => {
+                    URL.revokeObjectURL(tempVideo.src);
+                    console.warn(`⚠️ [Video API] Failed to load video metadata, using default 30 FPS`);
+                    resolve(30); // Fallback to 30 FPS
+                };
             });
             
-            console.log(`🎬 [Video API] Creating video from ${frames.length} frames...`);
+            // Extract original video frames
+            console.log(`📹 [Video API] Extracting ${frameIndices.length} frames from original video at ${videoFPS} FPS...`);
+            const originalFrames = await extractVideoFrames(file, frameIndices, videoFPS);
+            console.log(`✅ [Video API] Extracted ${originalFrames.length} frames`);
             
-            // Create video from all frames
-            try {
-                // Estimate FPS based on original video duration (if available)
-                // Default to 30 FPS if we can't determine
-                const estimatedFPS = 30;
+            // Render masks on each frame (CLIENT-SIDE RENDERING)
+            const renderedFrames: string[] = [];
+            
+            for (let i = 0; i < data.frames.length; i++) {
+                const frameData = data.frames[i];
+                const frameIdx = frameData.frame_idx;
+                const masks = frameData.masks || [];
+                const objectIds = frameData.object_ids || [];
                 
-                const videoUrl = await createVideoFromFrames(frames, estimatedFPS);
+                // Find corresponding original frame
+                const frameIndexInArray = frameIndices.indexOf(frameIdx);
+                if (frameIndexInArray === -1 || frameIndexInArray >= originalFrames.length) {
+                    console.warn(`⚠️ [Video API] Frame ${frameIdx} not found in extracted frames, skipping`);
+                    continue;
+                }
+                
+                const originalFrame = originalFrames[frameIndexInArray];
+                
+                // Render masks on frame using Canvas API
+                if (masks.length > 0) {
+                    try {
+                        const renderedFrameUrl = await renderMasksOnFrame(originalFrame, masks, objectIds, 0.7);
+                        renderedFrames.push(renderedFrameUrl);
+                        console.log(`✅ [Video API] Rendered frame ${frameIdx} with ${masks.length} mask(s)`);
+                    } catch (renderError) {
+                        console.error(`❌ [Video API] Failed to render frame ${frameIdx}:`, renderError);
+                        // Fallback: use original frame without masks
+                        const canvas = document.createElement('canvas');
+                        canvas.width = originalFrame.width;
+                        canvas.height = originalFrame.height;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(originalFrame, 0, 0);
+                            renderedFrames.push(canvas.toDataURL('image/png'));
+                        }
+                    }
+                } else {
+                    // No masks, just use original frame
+                    const canvas = document.createElement('canvas');
+                    canvas.width = originalFrame.width;
+                    canvas.height = originalFrame.height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(originalFrame, 0, 0);
+                        renderedFrames.push(canvas.toDataURL('image/png'));
+                    }
+                }
+            }
+            
+            if (renderedFrames.length === 0) {
+                return { text: "No frames rendered." };
+            }
+            
+            console.log(`🎬 [Video API] Creating video from ${renderedFrames.length} rendered frames at ${videoFPS} FPS...`);
+            
+            // Create video from rendered frames
+            try {
+                const videoUrl = await createVideoFromFrames(renderedFrames, videoFPS);
                 
                 return {
                     text: `Tracked ${data.frames.length} frames. Found ${data.frames[0]?.object_ids?.length || 0} object(s).`,
-                    processedMediaUrl: videoUrl, // Video blob URL
-                    processedMediaType: 'video', // Now it's a real video!
+                    processedMediaUrl: videoUrl, // Video blob URL with client-side rendered masks
+                    processedMediaType: 'video',
                     rawMasks: data.frames.flatMap((f: any) => f.masks || []),
                     rawBoxes: data.frames.flatMap((f: any) => f.boxes || []),
-                    trackingFrames: frames // Keep frames for reference
+                    trackingFrames: renderedFrames // Keep rendered frames for reference
                 };
             } catch (videoError) {
                 console.error("❌ [Video API] Failed to create video from frames:", videoError);
                 // Fallback to first frame as image preview
                 return {
                     text: `Tracked ${data.frames.length} frames. Found ${data.frames[0]?.object_ids?.length || 0} object(s). (Video creation failed, showing first frame)`,
-                    processedMediaUrl: frames[0] || null,
+                    processedMediaUrl: renderedFrames[0] || null,
                     processedMediaType: 'image',
                     rawMasks: data.frames.flatMap((f: any) => f.masks || []),
                     rawBoxes: data.frames.flatMap((f: any) => f.boxes || []),
-                    trackingFrames: frames
+                    trackingFrames: renderedFrames
                 };
             }
         } else {
