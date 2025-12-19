@@ -1,0 +1,8 @@
+{
+  "name": "EagleAI",
+  "description": "Advanced object detection, segmentation and tracking interface using Gemini 3 and SAM3.",
+  "requestFramePermissions": [
+    "camera",
+    "display-capture"
+  ]
+}
