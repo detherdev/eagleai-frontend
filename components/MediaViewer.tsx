@@ -39,6 +39,10 @@ interface MediaViewerProps {
   
   showLoadingOverlay?: boolean;
   loadingStatus?: string;
+  
+  // Re-anchor support
+  onReanchor?: (frameIdx: number) => void;
+  fastMode?: boolean;
 }
 
 export const MediaViewer: React.FC<MediaViewerProps> = ({
@@ -48,6 +52,8 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   result,
   localStream,
   remoteStream,
+  onReanchor,
+  fastMode,
   mode,
   points = [],
   box,
@@ -80,6 +86,9 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   
   // Tracking Overlay State
   const [currentOverlayUrl, setCurrentOverlayUrl] = useState<string | null>(null);
+  
+  // Current video frame (for re-anchor)
+  const [currentVideoFrame, setCurrentVideoFrame] = useState<number>(0);
   
   // Interaction State
   const [startClientPos, setStartClientPos] = useState<{x: number, y: number} | null>(null);
@@ -228,6 +237,27 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
   const handlePreviewSeek = (time: number) => {
     if (videoRef.current && mediaType === 'video' && !isCameraActive) {
         videoRef.current.currentTime = time;
+    }
+  };
+  
+  // Track current video frame for re-anchor
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || mediaType !== 'video') return;
+    
+    const updateFrame = () => {
+      // Estimate frame index (assuming 30 FPS)
+      const frameIdx = Math.floor(video.currentTime * 30);
+      setCurrentVideoFrame(frameIdx);
+    };
+    
+    video.addEventListener('timeupdate', updateFrame);
+    return () => video.removeEventListener('timeupdate', updateFrame);
+  }, [mediaType]);
+  
+  const handleReanchor = () => {
+    if (onReanchor) {
+      onReanchor(currentVideoFrame);
     }
   };
 
@@ -672,6 +702,18 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({
             className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg hover:bg-white text-gray-700 transition z-10"
            >
              <IconX className="w-5 h-5" />
+           </button>
+         )}
+         
+         {/* Re-anchor Button (Video Only, when result exists and fast mode enabled) */}
+         {mediaType === 'video' && result && fastMode && onReanchor && (
+           <button
+             onClick={handleReanchor}
+             className="absolute bottom-4 right-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-lg transition-all z-10 flex items-center gap-2"
+             title="Re-anchor tracking at current frame"
+           >
+             <span>🎯</span>
+             <span>Re-anchor at Frame {currentVideoFrame}</span>
            </button>
          )}
       </div>

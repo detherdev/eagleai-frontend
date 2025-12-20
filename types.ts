@@ -66,4 +66,8 @@ export interface AppState {
   // Video specific
   videoDuration: number;
   trimRange: [number, number]; // [start, end] in seconds
+  
+  // Fast tracking mode
+  fastMode: boolean;
+  keyframeIdx: number;
 }

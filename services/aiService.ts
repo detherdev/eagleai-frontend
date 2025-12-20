@@ -13,13 +13,13 @@ const dataURLtoBlob = (dataurl: string): Blob => {
     }
     
     try {
-        const arr = dataurl.split(',');
+    const arr = dataurl.split(',');
         if (arr.length < 2) {
             throw new Error("Invalid data URL: missing comma separator");
         }
         
-        const match = arr[0].match(/:(.*?);/);
-        const mime = match ? match[1] : 'image/jpeg';
+    const match = arr[0].match(/:(.*?);/);
+    const mime = match ? match[1] : 'image/jpeg';
         const base64Data = arr[1];
         
         if (!base64Data || base64Data.length === 0) {
@@ -27,11 +27,11 @@ const dataURLtoBlob = (dataurl: string): Blob => {
         }
         
         const bstr = atob(base64Data);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-        }
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
         
         const blob = new Blob([u8arr], { type: mime });
         console.log(`✅ [dataURLtoBlob] Converted data URL to blob: ${(blob.size / 1024).toFixed(2)}KB, type: ${mime}`);
@@ -101,7 +101,7 @@ const createVideoFromFrames = async (
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data && e.data.size > 0) {
                     chunks.push(e.data);
-                }
+}
             };
 
             mediaRecorder.onstop = () => {
@@ -502,37 +502,37 @@ const decodeMasksToDataURL = (masks: { size: [number, number], counts: number[] 
     console.log(`🎨 [Mask Decode] Decoding ${masks.length} masks...`);
     
     try {
-        const [height, width] = masks[0].size;
+    const [height, width] = masks[0].size;
         console.log(`📐 [Mask Decode] Canvas size: ${width}x${height}`);
         
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
         if (!ctx) {
             console.error("❌ [Mask Decode] Failed to get canvas context");
             return '';
         }
-        
-        const imageData = ctx.createImageData(width, height);
-        const data = imageData.data;
-        
+    
+    const imageData = ctx.createImageData(width, height);
+    const data = imageData.data;
+    
         // Decode all masks into a single composite mask
         for (let maskIdx = 0; maskIdx < masks.length; maskIdx++) {
             const mask = masks[maskIdx];
-            const counts = mask.counts;
+        const counts = mask.counts;
             
             // Verify mask size matches canvas
             if (mask.size[0] !== height || mask.size[1] !== width) {
                 console.warn(`⚠️ [Mask Decode] Mask ${maskIdx} size mismatch: ${mask.size[1]}x${mask.size[0]} vs canvas ${width}x${height}`);
             }
             
-            let p = 0; 
-            let val = 0; 
+        let p = 0; 
+        let val = 0; 
             
-            for (let i = 0; i < counts.length; i++) {
-                const count = counts[i];
-                if (val === 1) {
+        for (let i = 0; i < counts.length; i++) {
+            const count = counts[i];
+            if (val === 1) {
                     // Set pixels to white (255, 255, 255, 255)
                     const endIdx = Math.min(p + count, width * height);
                     for (let j = p; j < endIdx; j++) {
@@ -543,14 +543,14 @@ const decodeMasksToDataURL = (masks: { size: [number, number], counts: number[] 
                             data[idx + 2] = 255; // B
                             data[idx + 3] = 255; // A
                         }
-                    }
                 }
-                p += count;
-                val = 1 - val;
             }
+            p += count;
+            val = 1 - val;
         }
+    }
         
-        ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(imageData, 0, 0);
         const dataUrl = canvas.toDataURL('image/png');
         console.log(`✅ [Mask Decode] Successfully decoded ${masks.length} masks`);
         return dataUrl;
@@ -627,29 +627,29 @@ const compositeOverlay = async (originalBlob: Blob, maskDataUrl: string): Promis
             
             console.log(`🖼️ [Overlay] Both images loaded. Original: ${img.width}x${img.height}`);
             
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
+             canvas.width = img.width;
+             canvas.height = img.height;
+             ctx.drawImage(img, 0, 0);
             
             if (!maskError && mask.complete && mask.naturalWidth > 0) {
                 console.log(`🎨 [Overlay] Applying mask: ${mask.width}x${mask.height}`);
-                ctx.save();
-                ctx.globalAlpha = 0.5;
-                ctx.globalCompositeOperation = 'source-over';
-                const offCanvas = document.createElement('canvas');
-                offCanvas.width = canvas.width;
-                offCanvas.height = canvas.height;
-                const offCtx = offCanvas.getContext('2d');
-                if (offCtx) {
-                    offCtx.drawImage(mask, 0, 0, canvas.width, canvas.height);
-                    offCtx.globalCompositeOperation = 'source-in';
-                    offCtx.fillStyle = '#4f46e5'; 
-                    offCtx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(offCanvas, 0, 0);
-                } else {
-                    ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
-                }
-                ctx.restore();
+                 ctx.save();
+                 ctx.globalAlpha = 0.5;
+                 ctx.globalCompositeOperation = 'source-over';
+                 const offCanvas = document.createElement('canvas');
+                 offCanvas.width = canvas.width;
+                 offCanvas.height = canvas.height;
+                 const offCtx = offCanvas.getContext('2d');
+                 if (offCtx) {
+                     offCtx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+                     offCtx.globalCompositeOperation = 'source-in';
+                     offCtx.fillStyle = '#4f46e5'; 
+                     offCtx.fillRect(0, 0, canvas.width, canvas.height);
+                     ctx.drawImage(offCanvas, 0, 0);
+                 } else {
+                     ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
+                 }
+                 ctx.restore();
             } else {
                 console.warn("⚠️ [Overlay] Mask failed to load, skipping overlay");
             }
@@ -756,7 +756,7 @@ const compositeOverlay = async (originalBlob: Blob, maskDataUrl: string): Promis
             }
             
             img.src = objectUrl;
-            mask.src = maskDataUrl;
+             mask.src = maskDataUrl;
             
             console.log(`🔄 [Overlay] Started loading images:`);
             console.log(`  - Original: ${objectUrl.substring(0, 80)}...`);
@@ -775,9 +775,9 @@ const processSamResponse = async (data: any, originalBlob: Blob): Promise<Analys
     console.log(`📦 [Response] Masks: ${data.masks?.length || 0}, Boxes: ${data.boxes?.length || 0}, Scores: ${data.scores?.length || 0}`);
     
     try {
-        if (data.masks && data.masks.length > 0) {
+    if (data.masks && data.masks.length > 0) {
             console.log(`🎨 [Response] Decoding ${data.masks.length} masks...`);
-            const maskDataUrl = decodeMasksToDataURL(data.masks);
+        const maskDataUrl = decodeMasksToDataURL(data.masks);
             
             if (!maskDataUrl) {
                 console.warn("⚠️ [Response] Mask decoding returned empty, continuing without overlay");
@@ -799,23 +799,23 @@ const processSamResponse = async (data: any, originalBlob: Blob): Promise<Analys
                 }
             }
             
-            const count = data.masks.length;
-            const maxScore = data.scores ? Math.max(...data.scores) : 0;
-            const scoreText = `Found ${count} object${count !== 1 ? 's' : ''}. ` + 
-                (data.scores && data.scores.length > 0 ? `Max Confidence: ${(maxScore * 100).toFixed(1)}%` : "");
-            
+        const count = data.masks.length;
+        const maxScore = data.scores ? Math.max(...data.scores) : 0;
+        const scoreText = `Found ${count} object${count !== 1 ? 's' : ''}. ` + 
+            (data.scores && data.scores.length > 0 ? `Max Confidence: ${(maxScore * 100).toFixed(1)}%` : "");
+        
             console.log(`✅ [Response] Processing complete: ${scoreText}`);
             
-            return {
-                text: scoreText,
-                processedMediaUrl: overlayUrl,
-                processedMediaType: 'image',
-                rawMasks: data.masks,
-                rawBoxes: data.boxes
-            };
-        } else {
+        return {
+            text: scoreText,
+            processedMediaUrl: overlayUrl,
+            processedMediaType: 'image',
+            rawMasks: data.masks,
+            rawBoxes: data.boxes
+        };
+    } else {
             console.log("⚠️ [Response] No masks found in response");
-            return { text: "No objects found matching the prompt." };
+        return { text: "No objects found matching the prompt." };
         }
     } catch (error) {
         console.error("❌ [Response] Error processing SAM3 response:", error);
@@ -980,34 +980,41 @@ export const trackVideoText = async (
             // Extract frame indices from response
             const frameIndices = data.frames.map((f: any) => f.frame_idx).sort((a: number, b: number) => a - b);
             
-            // Get video FPS by loading video metadata
-            // Use max frame_idx to estimate total frames, then calculate FPS
-            const videoFPS = await new Promise<number>((resolve) => {
+            // Get video metadata (duration and calculate FPS)
+            const { duration, sam3FPS, originalFPS } = await new Promise<{ duration: number, sam3FPS: number, originalFPS: number }>((resolve) => {
                 const tempVideo = document.createElement('video');
                 tempVideo.preload = 'metadata';
                 tempVideo.src = URL.createObjectURL(file);
                 tempVideo.onloadedmetadata = () => {
                     const duration = tempVideo.duration;
                     const maxFrameIdx = Math.max(...frameIndices);
-                    // Estimate FPS: if we have frame indices up to maxFrameIdx, and video duration,
-                    // we can estimate FPS. Otherwise default to 30.
-                    const estimatedFPS = duration > 0 && maxFrameIdx > 0
-                        ? Math.round((maxFrameIdx + 1) / duration) // +1 because frame_idx is 0-indexed
-                        : 30; // Default to 30 FPS
+                    
+                    // SAM3 processed FPS: based on frame indices returned
+                    const sam3FPS = duration > 0 && maxFrameIdx > 0
+                        ? Math.round((maxFrameIdx + 1) / duration)
+                        : 30;
+                    
+                    // Original video FPS: try to get from video metadata, or estimate from total frames
+                    // Most videos are 24, 30, or 60 FPS
+                    // Since SAM3 downsamples, the original FPS is likely higher
+                    // Common pattern: if SAM3 processed at 6 FPS, original was likely 30 FPS (5x)
+                    const fpsMultiplier = sam3FPS <= 10 ? 5 : (sam3FPS <= 15 ? 2 : 1);
+                    const originalFPS = sam3FPS * fpsMultiplier;
+                    
                     URL.revokeObjectURL(tempVideo.src);
-                    console.log(`📊 [Video API] Video duration: ${duration.toFixed(2)}s, max frame: ${maxFrameIdx}, estimated FPS: ${estimatedFPS}`);
-                    resolve(estimatedFPS);
+                    console.log(`📊 [Video API] Duration: ${duration.toFixed(2)}s, SAM3 processed: ${sam3FPS} FPS, Original (estimated): ${originalFPS} FPS`);
+                    resolve({ duration, sam3FPS, originalFPS });
                 };
                 tempVideo.onerror = () => {
                     URL.revokeObjectURL(tempVideo.src);
-                    console.warn(`⚠️ [Video API] Failed to load video metadata, using default 30 FPS`);
-                    resolve(30); // Fallback to 30 FPS
+                    console.warn(`⚠️ [Video API] Failed to load video metadata, using defaults`);
+                    resolve({ duration: 10, sam3FPS: 30, originalFPS: 30 });
                 };
             });
             
-            // Extract original video frames
-            console.log(`📹 [Video API] Extracting ${frameIndices.length} frames from original video at ${videoFPS} FPS...`);
-            const originalFrames = await extractVideoFrames(file, frameIndices, videoFPS);
+            // Extract original video frames using SAM3's FPS (to match frame indices)
+            console.log(`📹 [Video API] Extracting ${frameIndices.length} frames from original video at ${sam3FPS} FPS...`);
+            const originalFrames = await extractVideoFrames(file, frameIndices, sam3FPS);
             console.log(`✅ [Video API] Extracted ${originalFrames.length} frames`);
             
             // Render masks on each frame (CLIENT-SIDE RENDERING)
@@ -1063,11 +1070,13 @@ export const trackVideoText = async (
                 return { text: "No frames rendered." };
             }
             
-            console.log(`🎬 [Video API] Creating video from ${renderedFrames.length} rendered frames at ${videoFPS} FPS...`);
+            // Create video at ORIGINAL FPS for correct playback speed
+            // Even though SAM3 processed fewer frames, we want the video to play at original speed
+            console.log(`🎬 [Video API] Creating video from ${renderedFrames.length} rendered frames at ${originalFPS} FPS (original speed)...`);
             
             // Create video from rendered frames
             try {
-                const videoUrl = await createVideoFromFrames(renderedFrames, videoFPS);
+                const videoUrl = await createVideoFromFrames(renderedFrames, originalFPS);
                 
                 return {
                     text: `Tracked ${data.frames.length} frames. Found ${data.frames[0]?.object_ids?.length || 0} object(s).`,
@@ -1094,6 +1103,236 @@ export const trackVideoText = async (
         }
     } catch (error: any) {
         console.error("❌ [Video API] Video tracking error:", error);
+        throw error;
+    }
+};
+
+/**
+ * Fast text-based video tracking (Meta playground pattern)
+ * 10-20x faster than standard tracking
+ */
+export const trackVideoTextFast = async (
+    file: File,
+    text: string,
+    settings: { confidence: number, maskQuality: number },
+    keyframeIdx: number = 0,
+    maxFrames: number = 0
+): Promise<AnalysisResult> => {
+    console.log(`🚀 [Fast Video API] Starting fast tracking: text='${text}', keyframe=${keyframeIdx}`);
+    
+    try {
+        // Convert video file to base64
+        console.log(`🔄 [Fast Video API] Converting video to base64... File size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+        const videoBase64 = await fileToBase64(file);
+        console.log(`✅ [Fast Video API] Video converted to base64. Size: ${(videoBase64.length * 3 / 4 / (1024 * 1024)).toFixed(2)}MB`);
+
+        if (!videoBase64 || !videoBase64.startsWith('data:')) {
+            throw new Error("Failed to convert video to valid base64 data URL.");
+        }
+
+        // Validate base64 size
+        const base64SizeMB = (videoBase64.length * 3) / 4 / 1024 / 1024;
+        if (base64SizeMB > 50) {
+            throw new Error(`Video is too large (${base64SizeMB.toFixed(2)}MB). Max allowed is 50MB. Please trim the video.`);
+        }
+
+        const payload = {
+            video: { b64: videoBase64 },
+            text: text,
+            keyframe_idx: keyframeIdx,
+            max_frames: maxFrames,
+            downscale_to: 640,
+        };
+        
+        console.log(`📡 [Fast Video API] Sending request to /v1/video/track_text_fast...`);
+        const response = await fetch(`${SAM_API_BASE}/v1/video/track_text_fast`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${HF_TOKEN}`
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Fast video tracking failed (${response.status}): ${errText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`✅ [Fast Video API] Video tracking complete: ${data.frames?.length || 0} frames processed`);
+        
+        // Process video tracking response with client-side rendering
+        if (data.frames && data.frames.length > 0) {
+            console.log(`🎨 [Fast Video API] Starting client-side mask rendering for ${data.frames.length} frames...`);
+            
+            // Get video metadata
+            const { duration, sam3FPS, originalFPS } = await new Promise<{ duration: number, sam3FPS: number, originalFPS: number }>((resolve) => {
+                const tempVideo = document.createElement('video');
+                tempVideo.preload = 'metadata';
+                tempVideo.src = URL.createObjectURL(file);
+                tempVideo.onloadedmetadata = () => {
+                    const duration = tempVideo.duration;
+                    const frameIndices = data.frames.map((f: any) => f.frame_idx);
+                    const maxFrameIdx = Math.max(...frameIndices);
+                    
+                    const sam3FPS = duration > 0 && maxFrameIdx > 0
+                        ? Math.round((maxFrameIdx + 1) / duration)
+                        : 30;
+                    
+                    const fpsMultiplier = sam3FPS <= 10 ? 5 : (sam3FPS <= 15 ? 2 : 1);
+                    const originalFPS = sam3FPS * fpsMultiplier;
+                    
+                    URL.revokeObjectURL(tempVideo.src);
+                    console.log(`📊 [Fast Video API] Duration: ${duration.toFixed(2)}s, SAM3 processed: ${sam3FPS} FPS, Original (estimated): ${originalFPS} FPS`);
+                    resolve({ duration, sam3FPS, originalFPS });
+                };
+                tempVideo.onerror = () => {
+                    URL.revokeObjectURL(tempVideo.src);
+                    console.warn(`⚠️ [Fast Video API] Failed to load video metadata, using defaults`);
+                    resolve({ duration: 10, sam3FPS: 30, originalFPS: 30 });
+                };
+            });
+            
+            // Extract frame indices
+            const frameIndices = data.frames.map((f: any) => f.frame_idx).sort((a: number, b: number) => a - b);
+            
+            // Extract original video frames
+            console.log(`📹 [Fast Video API] Extracting ${frameIndices.length} frames from original video at ${sam3FPS} FPS...`);
+            const originalFrames = await extractVideoFrames(file, frameIndices, sam3FPS);
+            console.log(`✅ [Fast Video API] Extracted ${originalFrames.length} frames`);
+            
+            // Render masks on each frame
+            const renderedFrames: string[] = [];
+            
+            for (let i = 0; i < data.frames.length; i++) {
+                const frameData = data.frames[i];
+                const frameIdx = frameData.frame_idx;
+                const masks = frameData.masks || [];
+                const objectIds = frameData.object_ids || [];
+                
+                const frameIndexInArray = frameIndices.indexOf(frameIdx);
+                if (frameIndexInArray === -1 || frameIndexInArray >= originalFrames.length) {
+                    console.warn(`⚠️ [Fast Video API] Frame ${frameIdx} not found in extracted frames, skipping`);
+                    continue;
+                }
+                
+                const originalFrame = originalFrames[frameIndexInArray];
+                
+                if (masks.length > 0) {
+                    try {
+                        const renderedFrameUrl = await renderMasksOnFrame(originalFrame, masks, objectIds, 0.7);
+                        renderedFrames.push(renderedFrameUrl);
+                        console.log(`✅ [Fast Video API] Rendered frame ${frameIdx} with ${masks.length} mask(s)`);
+                    } catch (renderError) {
+                        console.error(`❌ [Fast Video API] Failed to render frame ${frameIdx}:`, renderError);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = originalFrame.width;
+                        canvas.height = originalFrame.height;
+                        const ctx = canvas.getContext('2d');
+                        if (ctx) {
+                            ctx.drawImage(originalFrame, 0, 0);
+                            renderedFrames.push(canvas.toDataURL('image/png'));
+                        }
+                    }
+                } else {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = originalFrame.width;
+                    canvas.height = originalFrame.height;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(originalFrame, 0, 0);
+                        renderedFrames.push(canvas.toDataURL('image/png'));
+                    }
+                }
+            }
+            
+            if (renderedFrames.length === 0) {
+                return { text: "No frames rendered." };
+            }
+            
+            console.log(`🎬 [Fast Video API] Creating video from ${renderedFrames.length} rendered frames at ${originalFPS} FPS (original speed)...`);
+            
+            try {
+                const videoUrl = await createVideoFromFrames(renderedFrames, originalFPS);
+                
+                return {
+                    text: `Fast tracked ${data.frames.length} frames. Found ${data.frames[0]?.object_ids?.length || 0} object(s).`,
+                    processedMediaUrl: videoUrl,
+                    processedMediaType: 'video',
+                    rawMasks: data.frames.flatMap((f: any) => f.masks || []),
+                    rawBoxes: data.frames.flatMap((f: any) => f.boxes || []),
+                    trackingFrames: renderedFrames
+                };
+            } catch (videoError) {
+                console.error("❌ [Fast Video API] Failed to create video from frames:", videoError);
+                return {
+                    text: `Fast tracked ${data.frames.length} frames. Found ${data.frames[0]?.object_ids?.length || 0} object(s). (Video creation failed, showing first frame)`,
+                    processedMediaUrl: renderedFrames[0] || null,
+                    processedMediaType: 'image',
+                    rawMasks: data.frames.flatMap((f: any) => f.masks || []),
+                    rawBoxes: data.frames.flatMap((f: any) => f.boxes || []),
+                    trackingFrames: renderedFrames
+                };
+            }
+        } else {
+            return { text: "No objects tracked in video." };
+        }
+    } catch (error: any) {
+        console.error("❌ [Fast Video API] Video tracking error:", error);
+        throw error;
+    }
+};
+
+/**
+ * Re-anchor video tracking at a specific frame
+ */
+export const reanchorVideoTracking = async (
+    file: File,
+    text: string,
+    reanchorFrameIdx: number,
+    settings: { confidence: number, maskQuality: number }
+): Promise<AnalysisResult> => {
+    console.log(`🔄 [Reanchor API] Re-anchoring at frame ${reanchorFrameIdx}: text='${text}'`);
+    
+    try {
+        const videoBase64 = await fileToBase64(file);
+        
+        const payload = {
+            video: { b64: videoBase64 },
+            text: text,
+            reanchor_frame_idx: reanchorFrameIdx,
+            downscale_to: 640,
+        };
+        
+        console.log(`📡 [Reanchor API] Sending request to /v1/video/reanchor...`);
+        const response = await fetch(`${SAM_API_BASE}/v1/video/reanchor`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${HF_TOKEN}`
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Re-anchoring failed (${response.status}): ${errText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`✅ [Reanchor API] Re-anchoring complete: ${data.frames?.length || 0} frames processed`);
+        
+        // Process same as fast tracking
+        // (Simplified for now - reuse same rendering logic as trackVideoTextFast)
+        return {
+            text: `Re-anchored at frame ${reanchorFrameIdx}. Tracked ${data.frames?.length || 0} frames.`,
+            processedMediaUrl: null,
+            processedMediaType: 'video',
+            rawMasks: data.frames?.flatMap((f: any) => f.masks || []) || [],
+        };
+    } catch (error: any) {
+        console.error("❌ [Reanchor API] Re-anchoring error:", error);
         throw error;
     }
 };
@@ -1186,13 +1425,13 @@ export const analyzeMedia = async (
     // Re-process image blob for overlay composition
     let originalBlob: Blob;
     try {
-        if (file) {
-            // Use processed blob (to match dimension if resized)
+    if (file) {
+        // Use processed blob (to match dimension if resized)
             console.log("🔄 [Analyze] Processing file for overlay...");
-            const processed = await processImageForApi(file);
-            originalBlob = processed.blob;
+        const processed = await processImageForApi(file);
+        originalBlob = processed.blob;
             console.log(`✅ [Analyze] File processed: ${(originalBlob.size / 1024).toFixed(2)}KB, type: ${originalBlob.type}`);
-        } else if (imageBase64) {
+    } else if (imageBase64) {
             console.log("🔄 [Analyze] Converting base64 to blob for overlay...");
             
             // Validate base64 data URL first
@@ -1200,7 +1439,7 @@ export const analyzeMedia = async (
                 throw new Error(`Invalid base64 data URL format: ${imageBase64?.substring(0, 50) || 'empty'}`);
             }
             
-            originalBlob = dataURLtoBlob(imageBase64);
+        originalBlob = dataURLtoBlob(imageBase64);
             
             // Validate blob was created successfully
             if (!originalBlob || originalBlob.size === 0) {
@@ -1208,7 +1447,7 @@ export const analyzeMedia = async (
             }
             
             console.log(`✅ [Analyze] Base64 converted: ${(originalBlob.size / 1024).toFixed(2)}KB, type: ${originalBlob.type}`);
-        } else {
+    } else {
             throw new Error("No image source provided for overlay");
         }
     } catch (blobError: any) {

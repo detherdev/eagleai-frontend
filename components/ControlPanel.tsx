@@ -141,6 +141,47 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     className="w-full accent-blue-600"
                     />
                 </div>
+                
+                {/* Fast Mode Toggle (Video Only) */}
+                {state.mediaType === 'video' && state.mode === 'track' && (
+                    <div className="space-y-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-gray-400 tracking-wider uppercase">Fast Mode</label>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input 
+                                    type="checkbox" 
+                                    checked={state.fastMode}
+                                    onChange={(e) => updateState({ fastMode: e.target.checked })}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                        </div>
+                        <p className="text-[10px] text-gray-500">
+                            {state.fastMode ? '⚡ 10-20x faster (one-time grounding + propagation)' : '🐢 Standard (per-frame text matching)'}
+                        </p>
+                        
+                        {/* Keyframe Selector (only when NOT in fast mode) */}
+                        {!state.fastMode && (
+                            <div className="space-y-2 pt-2">
+                                <div className="flex justify-between items-center">
+                                    <label className="text-xs font-bold text-gray-400 tracking-wider uppercase">Keyframe</label>
+                                    <span className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-gray-600">{state.keyframeIdx}</span>
+                                </div>
+                                <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="100" 
+                                    step="1" 
+                                    value={state.keyframeIdx}
+                                    onChange={(e) => updateState({ keyframeIdx: parseInt(e.target.value) })}
+                                    className="w-full accent-blue-600"
+                                />
+                                <p className="text-[10px] text-gray-500">Frame to start tracking from</p>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
       

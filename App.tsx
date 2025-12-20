@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { MediaViewer } from './components/MediaViewer';
 import { AppState, Point, BoundingBox } from './types';
-import { analyzeMedia, establishWebRTCSession, closeWebRTCSession, trackVideoText } from './services/aiService';
+import { analyzeMedia, establishWebRTCSession, closeWebRTCSession, trackVideoText, trackVideoTextFast, reanchorVideoTracking } from './services/aiService';
 import { trimVideoFile } from './services/videoService';
 
 // heic2any is loaded via script tag in index.html
@@ -31,7 +31,9 @@ const App: React.FC = () => {
     isStreaming: false,
     streamSessionId: null,
     videoDuration: 0,
-    trimRange: [0, 0]
+    trimRange: [0, 0],
+    fastMode: true,  // Default to fast mode
+    keyframeIdx: 0
   });
 
   const [file, setFile] = useState<File | null>(null);
@@ -271,6 +273,43 @@ const App: React.FC = () => {
   const handleClearPoints = () => {
       updateState({ points: [], box: null });
   };
+  
+  const handleReanchor = async (frameIdx: number) => {
+    if (!file || state.mediaType !== 'video') {
+      console.warn("Re-anchor requires a video file");
+      return;
+    }
+    
+    console.log(`🔄 [Reanchor] Re-anchoring at frame ${frameIdx}`);
+    updateState({ isAnalyzing: true, processingStatus: `Re-anchoring at frame ${frameIdx}...` });
+    
+    try {
+      const result = await reanchorVideoTracking(
+        file,
+        state.prompt || "object",
+        frameIdx,
+        {
+          confidence: state.confidence,
+          maskQuality: state.maskQuality
+        }
+      );
+      
+      updateState({
+        result,
+        isAnalyzing: false,
+        processingStatus: ''
+      });
+      
+      console.log("✅ [Reanchor] Re-anchoring complete");
+    } catch (error: any) {
+      console.error("❌ [Reanchor] Re-anchoring failed:", error);
+      updateState({
+        isAnalyzing: false,
+        processingStatus: ''
+      });
+      alert(`Re-anchoring failed: ${error.message}`);
+    }
+  };
 
   const captureFrame = async (): Promise<string | undefined> => {
     try {
@@ -365,7 +404,7 @@ const App: React.FC = () => {
       
       console.log(`📸 [Capture] Capturing frame from video: ${video.videoWidth}x${video.videoHeight}`);
       
-      const canvas = document.createElement('canvas');
+    const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
@@ -374,7 +413,7 @@ const App: React.FC = () => {
         throw new Error("Failed to get canvas context");
       }
       
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
       // Validate canvas has content before converting
       const imageData = ctx.getImageData(0, 0, Math.min(canvas.width, 100), Math.min(canvas.height, 100));
@@ -482,18 +521,29 @@ const App: React.FC = () => {
 
       // 2. Video Analysis - Route to Video API
       if (state.mediaType === 'video' && fileInput) {
-          updateState({ processingStatus: 'Processing video with SAM3...' });
+          updateState({ processingStatus: state.fastMode ? '⚡ Fast tracking...' : 'Processing video with SAM3...' });
           
-          // Use video tracking API instead of capturing frames
-          const result = await trackVideoText(
-              fileInput,
-              promptInput || "object",
-              {
-                  confidence: state.confidence,
-                  maskQuality: state.maskQuality
-              },
-              0 // max_frames: 0 = use all frames
-          );
+          // Use fast tracking if enabled, otherwise use standard tracking
+          const result = state.fastMode 
+            ? await trackVideoTextFast(
+                fileInput,
+                promptInput || "object",
+                {
+                    confidence: state.confidence,
+                    maskQuality: state.maskQuality
+                },
+                state.keyframeIdx || 0,
+                0 // max_frames: 0 = use all frames
+              )
+            : await trackVideoText(
+                fileInput,
+                promptInput || "object",
+                {
+                    confidence: state.confidence,
+                    maskQuality: state.maskQuality
+                },
+                0 // max_frames: 0 = use all frames
+              );
           
           // Update result and clear loading state immediately
           updateState({ 
@@ -519,17 +569,17 @@ const App: React.FC = () => {
       let result;
       try {
         result = await analyzeMedia(
-          state.mode,
+        state.mode,
           targetFile,
-          promptInput,
-          imageBase64,
-          {
-              confidence: state.confidence,
-              maskQuality: state.maskQuality
-          },
-          points, 
-          box     
-        );
+        promptInput,
+        imageBase64,
+        {
+            confidence: state.confidence,
+            maskQuality: state.maskQuality
+        },
+        points, 
+        box     
+      );
       } catch (analyzeError: any) {
         // Convert Event objects to Error objects
         if (analyzeError instanceof Event) {
@@ -597,7 +647,7 @@ const App: React.FC = () => {
       
       // Clear loading state on error too
       if (!state.isStreaming) {
-        updateState({ isAnalyzing: false, processingStatus: '' });
+          updateState({ isAnalyzing: false, processingStatus: '' });
       }
     }
   };
@@ -676,9 +726,13 @@ const App: React.FC = () => {
             
             onTrimConfirm={handleTrimVideo}
             isTrimming={state.isTrimming}
-            
+
             showLoadingOverlay={state.isAnalyzing || state.isTrimming}
             loadingStatus={state.processingStatus}
+            
+            // Re-anchor support
+            onReanchor={handleReanchor}
+            fastMode={state.fastMode}
           />
         </div>
       </div>
