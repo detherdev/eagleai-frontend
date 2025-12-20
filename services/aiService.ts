@@ -1126,11 +1126,7 @@ export const trackVideoTextFast = async (
         const videoBase64 = await fileToBase64(file);
         console.log(`✅ [Fast Video API] Video converted to base64. Size: ${(videoBase64.length * 3 / 4 / (1024 * 1024)).toFixed(2)}MB`);
 
-        if (!videoBase64 || !videoBase64.startsWith('data:')) {
-            throw new Error("Failed to convert video to valid base64 data URL.");
-        }
-
-        // Validate base64 size
+        // Validate base64 size (client-side limit to prevent OOM)
         const base64SizeMB = (videoBase64.length * 3) / 4 / 1024 / 1024;
         if (base64SizeMB > 50) {
             throw new Error(`Video is too large (${base64SizeMB.toFixed(2)}MB). Max allowed is 50MB. Please trim the video.`);
